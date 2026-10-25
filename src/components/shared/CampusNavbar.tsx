@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { MapPin, Search, ShoppingBag, Bell, X, Store } from 'lucide-react';
+import { MapPin, Search, ShoppingBag, Bell, X, Store, LogIn, LogOut, User as UserIcon } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { SiTitutMascot } from './SiTitutMascot';
 import { SafeImage } from './SafeImage';
 import { formatIDR } from '../../utils/currency';
 import { ORDER_STATUS_LABELS } from '../../utils/orderTransitions';
+import { AuthModal } from './AuthModal';
 
 interface Props {
   activeTab?: 'roles' | 'user' | 'courier' | 'admin' | 'cart';
@@ -16,19 +17,20 @@ interface Props {
 }
 
 export function CampusNavbar({
-  activeTab = 'roles',
+  activeTab: _activeTab = 'roles',
   onNavigateTab,
   onSearchChange,
   onSelectCanteen,
   searchValue = '',
   showSearch = true,
 }: Props) {
-  const { state, setRole, cartCount, addToCart } = useApp();
+  const { state, setRole, cartCount, addToCart, authUser, authProfile, signOut } = useApp();
   const [internalSearch, setInternalSearch] = useState(searchValue);
   const [prevSearchValue, setPrevSearchValue] = useState(searchValue);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showMascotSpeech, setShowMascotSpeech] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   // Sync external search prop if controlled without effect cascading
   if (searchValue !== prevSearchValue) {
@@ -359,62 +361,90 @@ export function CampusNavbar({
         </div>
       )}
 
-      {/* Right: Role Switcher & Notifications & Mascot */}
+      {/* Right: User Account, Notifications, Cart & Mascot */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        {/* Mobile Active Role Pill (Shown only on small screens) */}
-        <div
-          className="hide-on-desktop"
-          style={{
-            alignItems: 'center',
-            background: '#EFF6FF',
-            color: '#0265DC',
-            padding: '4px 10px',
-            borderRadius: 9999,
-            fontSize: 11,
-            fontWeight: 800,
-          }}
-        >
-          {activeTab === 'roles' ? 'Pilih Peran' : activeTab === 'user' ? 'Pelanggan' : activeTab === 'courier' ? 'Kurir' : 'Admin'}
-        </div>
-
-        {/* Clean Modern Role Switcher (Hidden on mobile < 640px to prevent overflow) */}
-        <div
-          className="navbar-role-switcher-desktop"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 2,
-            background: '#F1F5F9',
-            padding: '3px',
-            borderRadius: 9999,
-          }}
-        >
-          {(['roles', 'user', 'courier', 'admin'] as const).map((tab) => {
-            const labelMap = { roles: 'Peran', user: 'User', courier: 'Kurir', admin: 'Admin' };
-            const isTabActive = activeTab === tab;
-            return (
-              <button
-                key={tab}
-                onClick={() => handleTabClick(tab)}
-                style={{
-                  padding: '5px 12px',
-                  borderRadius: 9999,
-                  border: 'none',
-                  background: isTabActive ? '#0F1E3D' : 'transparent',
-                  color: isTabActive ? '#FFFFFF' : '#64748B',
-                  fontFamily: "'Poppins', sans-serif",
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  boxShadow: isTabActive ? '0 2px 8px rgba(15, 30, 61, 0.15)' : 'none',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                {labelMap[tab]}
-              </button>
-            );
-          })}
-        </div>
+        {/* Supabase User Account / Login Button */}
+        {authUser ? (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: '#EFF6FF',
+              padding: '3px 10px 3px 6px',
+              borderRadius: 9999,
+              border: '1px solid #BFDBFE',
+            }}
+          >
+            <div
+              style={{
+                width: 24,
+                height: 24,
+                borderRadius: '50%',
+                background: '#0265DC',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 11,
+                fontWeight: 800,
+              }}
+            >
+              <UserIcon size={13} />
+            </div>
+            <span
+              className="hide-on-mobile"
+              style={{
+                fontSize: 11.5,
+                fontWeight: 700,
+                color: '#1E3A8A',
+                maxWidth: 100,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+              title={authProfile?.full_name || authUser.email}
+            >
+              {authProfile?.full_name?.split(' ')[0] || 'Akun'}
+            </span>
+            <button
+              onClick={() => signOut()}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 2,
+                cursor: 'pointer',
+                color: '#64748B',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+              title="Keluar dari Akun PENS"
+            >
+              <LogOut size={13} />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowAuthModal(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '6px 12px',
+              borderRadius: 9999,
+              background: '#0F1E3D',
+              color: 'white',
+              border: 'none',
+              fontSize: 11.5,
+              fontWeight: 800,
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(15, 30, 61, 0.15)',
+            }}
+          >
+            <LogIn size={13} />
+            <span className="hide-on-mobile">Masuk PENS</span>
+          </button>
+        )}
 
         {/* Notifications Icon (Interactive) */}
         <div ref={notifRef} style={{ position: 'relative' }}>
@@ -639,6 +669,9 @@ export function CampusNavbar({
         </div>
       </div>
       </div>
+
+      {/* Supabase Auth Modal */}
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </header>
   );
 }

@@ -230,7 +230,7 @@ export function UserCart({ onBack, onOrderPlaced }: Props) {
       e.range = `Alamat melebihi jangkauan maksimum (${pricingConfig.maxDistanceKm} km)`;
     }
     if (cartItems.length === 0) e.items = 'Keranjang belanja masih kosong';
-    if (!currentUser?.isActive) e.items = 'Akun Anda sedang dinonaktifkan';
+    if (currentUser && currentUser.isActive === false) e.items = 'Akun Anda sedang dinonaktifkan';
 
     setErrors(e);
     return Object.keys(e).length === 0;

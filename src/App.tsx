@@ -3,10 +3,19 @@ import { RoleSelectScreen } from './pages/auth/RoleSelectScreen';
 import { AdminLayout } from './layouts/AdminLayout';
 import { CourierLayout } from './layouts/CourierLayout';
 import { UserLayout } from './layouts/UserLayout';
-import { FloatingRoleSwitcher } from './components/shared/FloatingRoleSwitcher';
+
+import { MascotExporter } from './pages/MascotExporter';
 
 function MainApp() {
   const { state } = useApp();
+
+  if (
+    typeof window !== 'undefined' &&
+    (window.location.search.includes('export_mascots') ||
+      window.location.pathname === '/export-mascots')
+  ) {
+    return <MascotExporter />;
+  }
 
   const renderContent = () => {
     switch (state.currentRole) {
@@ -21,12 +30,7 @@ function MainApp() {
     }
   };
 
-  return (
-    <>
-      {renderContent()}
-      <FloatingRoleSwitcher />
-    </>
-  );
+  return <>{renderContent()}</>;
 }
 
 export default function App() {

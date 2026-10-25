@@ -102,6 +102,7 @@ export interface StatusHistoryEntry {
 
 export interface Order {
   id: string;
+  orderNumber?: string;
   userId: string;
   courierId: string | null;
   items: OrderItem[];

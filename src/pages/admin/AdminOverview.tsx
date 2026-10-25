@@ -192,6 +192,77 @@ export function AdminOverview({ onNavigate }: Props) {
         </div>
       )}
 
+      {/* Canteen Sales Breakdown Bento Card */}
+      <div className="bento-card" style={{ padding: 24, marginBottom: 28 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div>
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-navy)', margin: 0 }}>
+              🏪 Rekapitulasi Penjualan per Kantin Kampus
+            </h3>
+            <p style={{ fontSize: 12, color: '#64748B', marginTop: 3 }}>
+              Data omzet dan transaksi unik masing-masing mitra kantin PENS
+            </p>
+          </div>
+          <button className="btn-pill" onClick={() => onNavigate('canteens')} style={{ fontSize: 12, padding: '5px 14px' }}>
+            Kelola Kantin
+            <ArrowRight size={12} />
+          </button>
+        </div>
+
+        <div className="table-wrapper">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Nama Kantin</th>
+                <th>Lokasi Kampus</th>
+                <th>Pesanan Selesai</th>
+                <th>Omzet Makanan (GMV)</th>
+                <th>Ongkir / Jastip</th>
+                <th>Status Operasional</th>
+              </tr>
+            </thead>
+            <tbody>
+              {canteens.map((c) => {
+                const cOrders = orders.filter((o) => o.canteenId === c.id);
+                const compOrders = cOrders.filter((o) => o.status === 'completed');
+                const foodGmv = compOrders.reduce((sum, o) => sum + o.subtotal, 0);
+                const deliveryFees = compOrders.reduce((sum, o) => sum + o.serviceFee, 0);
+
+                return (
+                  <tr key={c.id}>
+                    <td style={{ fontWeight: 800, color: '#0F1E3D' }}>{c.name}</td>
+                    <td style={{ fontSize: 12, color: '#64748B' }}>📍 {c.location}</td>
+                    <td style={{ fontWeight: 700 }}>
+                      {compOrders.length} <span style={{ fontSize: 11, color: '#94A3B8' }}>/ {cOrders.length} total</span>
+                    </td>
+                    <td style={{ fontWeight: 800, color: '#16A34A' }}>
+                      {formatIDR(foodGmv)}
+                    </td>
+                    <td style={{ fontWeight: 700, color: '#0284C7' }}>
+                      {formatIDR(deliveryFees)}
+                    </td>
+                    <td>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 800,
+                          padding: '3px 10px',
+                          borderRadius: 9999,
+                          background: c.isActive ? '#DCFCE7' : '#F1F5F9',
+                          color: c.isActive ? '#15803D' : '#64748B',
+                        }}
+                      >
+                        {c.isActive ? 'Buka' : 'Tutup'}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* Recent Orders Bento */}
       <div className="bento-card" style={{ padding: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>

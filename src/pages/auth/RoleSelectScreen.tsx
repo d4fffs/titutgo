@@ -1,18 +1,51 @@
 import { useState } from 'react';
 import {
-  Utensils, Bike, Shield, ArrowRight, Zap, Coins, GraduationCap
+  Utensils, Bike, Shield, ArrowRight, Zap, Coins, GraduationCap, LogIn, UserCheck
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { SiTitutMascot } from '../../components/shared/SiTitutMascot';
 import { CampusNavbar } from '../../components/shared/CampusNavbar';
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog';
 import { ToastContainer, useToast } from '../../components/shared/Toast';
+import { AuthModal } from '../../components/shared/AuthModal';
 
 export function RoleSelectScreen() {
-  const { setRole, resetDemo } = useApp();
+  const { setRole, resetDemo, authUser, authProfile, signIn, signOut } = useApp();
   const { toasts, showToast, removeToast } = useToast();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [infoModal, setInfoModal] = useState<{ title: string; content: string } | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  const handleSelectRole = async (targetRole: 'user' | 'kurir' | 'admin') => {
+    if (isLoggingIn) return;
+    setIsLoggingIn(true);
+    try {
+      // If user is already authenticated with the correct role, navigate directly
+      if (authUser && authProfile) {
+        const currentAppRole = authProfile.role === 'courier' ? 'kurir' : authProfile.role;
+        if (currentAppRole === targetRole) {
+          setRole(targetRole);
+          return;
+        }
+      }
+
+      // Automatically authenticate with verified Supabase demo account
+      if (targetRole === 'admin') {
+        await signIn('admin@pens.ac.id', 'admin123');
+      } else if (targetRole === 'kurir') {
+        await signIn('kurir@pens.ac.id', 'kurir123');
+      } else {
+        await signIn('mahasiswa@pens.ac.id', 'user123');
+      }
+      setRole(targetRole);
+    } catch (err) {
+      console.warn('Auto signin note:', err);
+      setRole(targetRole);
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
 
   const handleResetConfirm = () => {
     resetDemo();
@@ -47,7 +80,6 @@ export function RoleSelectScreen() {
         >
           {/* Left Column: Bold Headline & Editorial Copy */}
           <div className="landing-hero-left">
-
             {/* Giant Display Headline */}
             <h1 style={{
               fontSize: 'clamp(2.3rem, 4vw, 3.6rem)',
@@ -66,17 +98,110 @@ export function RoleSelectScreen() {
               fontSize: 15.5,
               color: '#475569',
               lineHeight: 1.6,
-              marginBottom: 32,
+              marginBottom: 24,
               maxWidth: 540,
               fontWeight: 500,
             }}>
               Layanan jasa titip (jastip) makanan antar mahasiswa dan sivitas di lingkungan kampus PENS Sukolilo. Pesan menu favorit FoodLAB & Kantin PENS, diantar hangat sampai ke Gedung D3, D4, Pasca, atau Lab praktikummu tanpa perlu antre!
             </p>
 
+            {/* Auth status or Auth Button */}
+            {authUser ? (
+              <div
+                style={{
+                  background: '#FFFFFF',
+                  borderRadius: 16,
+                  padding: '14px 18px',
+                  border: '1px solid #E2E8F0',
+                  boxShadow: '0 4px 14px rgba(15, 30, 61, 0.06)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  marginBottom: 28,
+                  maxWidth: 520,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0265DC' }}>
+                    <UserCheck size={20} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: '#0F1E3D' }}>
+                      {authProfile?.full_name || authUser.email}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>
+                      Peran: <strong style={{ textTransform: 'capitalize', color: '#0265DC' }}>{authProfile?.role || 'User'}</strong> • {authProfile?.study_program || 'Sivitas PENS'}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => {
+                      const appRole = authProfile?.role === 'courier' ? 'kurir' : (authProfile?.role || 'user');
+                      setRole(appRole as any);
+                    }}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: 9999,
+                      background: '#0265DC',
+                      color: 'white',
+                      border: 'none',
+                      fontSize: 12,
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Buka Dashboard
+                  </button>
+                  <button
+                    onClick={() => signOut()}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: 9999,
+                      background: '#F1F5F9',
+                      color: '#64748B',
+                      border: 'none',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Keluar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ marginBottom: 28, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => setShowAuthModal(true)}
+                  style={{
+                    padding: '12px 22px',
+                    borderRadius: 9999,
+                    background: '#0F1E3D',
+                    color: 'white',
+                    border: 'none',
+                    fontWeight: 800,
+                    fontSize: 13.5,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    boxShadow: '0 4px 14px rgba(15, 30, 61, 0.2)',
+                  }}
+                >
+                  <LogIn size={16} />
+                  <span>Masuk / Daftar Akun PENS (Supabase Auth)</span>
+                </button>
+                <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 600 }}>atau pilih akses cepat di bawah:</span>
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div className="hero-btn-group" style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 40 }}>
               <button
-                onClick={() => setRole('user')}
+                onClick={() => handleSelectRole('user')}
+                disabled={isLoggingIn}
                 className="btn btn-primary"
                 style={{
                   padding: '14px 28px',
@@ -89,12 +214,13 @@ export function RoleSelectScreen() {
                   gap: 10,
                 }}
               >
-                <span>Pesan Makanan Sekarang</span>
+                <span>{isLoggingIn ? 'Menghubungkan...' : 'Pesan Makanan Sekarang'}</span>
                 <ArrowRight size={17} />
               </button>
 
               <button
-                onClick={() => setRole('kurir')}
+                onClick={() => handleSelectRole('kurir')}
+                disabled={isLoggingIn}
                 className="btn-pill"
                 style={{
                   padding: '13px 22px',
@@ -209,7 +335,7 @@ export function RoleSelectScreen() {
           <div className="role-cards-grid">
             {/* Card 1: User / Mahasiswa & Sivitas PENS */}
             <div
-              onClick={() => setRole('user')}
+              onClick={() => handleSelectRole('user')}
               className="bento-card"
               style={{
                 padding: '26px 24px',
@@ -246,21 +372,22 @@ export function RoleSelectScreen() {
               </p>
               <button
                 id="btn-role-user"
+                disabled={isLoggingIn}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setRole('user');
+                  handleSelectRole('user');
                 }}
                 className="btn btn-primary btn-full"
                 style={{ marginTop: 'auto', borderRadius: 9999 }}
               >
-                <span>PESAN SEKARANG</span>
+                <span>{isLoggingIn ? 'MENGHUBUNGKAN...' : 'PESAN SEKARANG'}</span>
                 <ArrowRight size={15} />
               </button>
             </div>
 
             {/* Card 2: Kurir Jastiper */}
             <div
-              onClick={() => setRole('kurir')}
+              onClick={() => handleSelectRole('kurir')}
               className="bento-card"
               style={{
                 padding: '26px 24px',
@@ -300,21 +427,22 @@ export function RoleSelectScreen() {
 
               <button
                 id="btn-role-kurir"
+                disabled={isLoggingIn}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setRole('kurir');
+                  handleSelectRole('kurir');
                 }}
                 className="btn btn-accent btn-full"
                 style={{ marginTop: 'auto', borderRadius: 9999 }}
               >
-                <span>GASPOL JADI KURIR</span>
+                <span>{isLoggingIn ? 'MENGHUBUNGKAN...' : 'GASPOL JADI KURIR'}</span>
                 <Bike size={15} />
               </button>
             </div>
 
             {/* Card 3: Admin Kampus */}
             <div
-              onClick={() => setRole('admin')}
+              onClick={() => handleSelectRole('admin')}
               className="bento-card"
               style={{
                 padding: '26px 24px',
@@ -350,14 +478,15 @@ export function RoleSelectScreen() {
               </p>
               <button
                 id="btn-role-admin"
+                disabled={isLoggingIn}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setRole('admin');
+                  handleSelectRole('admin');
                 }}
                 className="btn btn-outline btn-full"
                 style={{ marginTop: 'auto', borderRadius: 9999 }}
               >
-                <span>KONSOL ADMIN</span>
+                <span>{isLoggingIn ? 'MENGHUBUNGKAN...' : 'KONSOL ADMIN'}</span>
                 <ArrowRight size={15} />
               </button>
             </div>
@@ -489,6 +618,12 @@ export function RoleSelectScreen() {
           onCancel={() => setShowResetConfirm(false)}
         />
       )}
+
+      {/* Supabase Auth Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+      />
     </div>
   );
 }

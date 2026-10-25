@@ -174,6 +174,7 @@ export function AdminOrders() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all');
   const [courierFilter, setCourierFilter] = useState<string>('all');
+  const [canteenFilter, setCanteenFilter] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   const ALL_STATUSES: OrderStatus[] = [
@@ -186,7 +187,8 @@ export function AdminOrders() {
       (user?.name.toLowerCase().includes(search.toLowerCase()) ?? false);
     const matchStatus = statusFilter === 'all' || o.status === statusFilter;
     const matchCourier = courierFilter === 'all' || o.courierId === courierFilter;
-    return matchSearch && matchStatus && matchCourier;
+    const matchCanteen = canteenFilter === 'all' || o.canteenId === canteenFilter;
+    return matchSearch && matchStatus && matchCourier && matchCanteen;
   }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   const handleCancel = (orderId: string) => {
@@ -207,7 +209,7 @@ export function AdminOrders() {
           </p>
         </div>
         <span className="badge badge-primary" style={{ fontSize: 12, fontWeight: 900 }}>
-          {state.orders.length} Total Pesanan
+          {filtered.length} / {state.orders.length} Pesanan
         </span>
       </div>
 
@@ -228,6 +230,23 @@ export function AdminOrders() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+        <select
+          className="form-input form-select"
+          value={canteenFilter}
+          onChange={(e) => setCanteenFilter(e.target.value)}
+          style={{
+            width: 190,
+            borderRadius: 14,
+            border: 'none',
+            boxShadow: '0 1px 3px rgba(15, 30, 61, 0.05)',
+            fontWeight: 800,
+          }}
+        >
+          <option value="all">Semua Kantin</option>
+          {state.canteens.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
         <select
           className="form-input form-select"
           value={statusFilter}

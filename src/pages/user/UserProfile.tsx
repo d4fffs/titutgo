@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import {
   Heart,
-  LogOut,
   Phone,
   Mail,
   MapPin,
@@ -18,7 +17,7 @@ import { POPULAR_SURABAYA_LOCATIONS } from '../../utils/geocoding';
 import type { SavedAddress } from '../../types';
 
 export function UserProfile() {
-  const { state, currentUser, setRole, setDemoUser, updateUser, addSavedAddress, deleteSavedAddress } =
+  const { state, currentUser, updateUser, addSavedAddress, deleteSavedAddress } =
     useApp();
   const { toasts, showToast, removeToast } = useToast();
 
@@ -334,27 +333,6 @@ export function UserProfile() {
         )}
       </div>
 
-      {/* Switch Demo User Bento */}
-      <div className="bento-card" style={{ padding: '20px 22px', marginBottom: 20 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: '#0F1E3D', marginBottom: 10 }}>
-          Ganti Akun Demo Pelanggan
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {state.users.map((u) => (
-            <button
-              key={u.id}
-              className={`chip ${u.id === currentUser.id ? 'active' : ''}`}
-              onClick={() => {
-                setDemoUser(u.id);
-                showToast(`Beralih ke akun ${u.name}`, 'success');
-              }}
-            >
-              {u.name} {u.phone ? `(${u.phone})` : ''}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Favorites Bento */}
       {favorites.length > 0 && (
         <div className="bento-card" style={{ padding: '20px 22px', marginBottom: 20 }}>
@@ -385,18 +363,6 @@ export function UserProfile() {
           </div>
         </div>
       )}
-
-      {/* Logout / Switch Role Action */}
-      <button
-        className="btn-pill btn-pill-primary"
-        style={{ width: '100%', justifyContent: 'space-between', padding: '12px 14px 12px 22px' }}
-        onClick={() => setRole(null)}
-      >
-        <span>Ganti Peran Akun</span>
-        <div className="btn-pill-circle-icon">
-          <LogOut size={14} />
-        </div>
-      </button>
 
       {/* Modal: Edit Customer Profile Contacts */}
       {isEditingProfile && (

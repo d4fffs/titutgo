@@ -467,18 +467,18 @@ export const INITIAL_FOOD_ITEMS: FoodItem[] = [
 
 export const INITIAL_USERS: AppUser[] = [
   {
-    id: 'user-1',
-    name: 'Naufal Pratama',
-    phone: '0812-3456-7890',
-    email: 'naufal.pratama@pens.ac.id',
+    id: '014cfa4d-9fe1-466f-be0f-c321190da118',
+    name: 'Budi Santoso',
+    phone: '081234567890',
+    email: 'mahasiswa@pens.ac.id',
     userType: 'mahasiswa',
     role: 'user',
     isActive: true,
-    favorites: ['food-1', 'food-9', 'food-22', 'food-26'],
+    favorites: ['1', '2'],
     savedAddresses: [
       {
         id: 'addr-1',
-        label: 'Lab Utama (D4)',
+        label: 'Lab AI & Software (D4)',
         fullAddress: 'Lab AI & Rekayasa Perangkat Lunak, Gedung D4 Baru Lt. 2, Kampus PENS',
         streetNotes: 'Meja praktikum sisi barat dekat jendela',
         coordinates: { lat: -7.2755, lng: 112.7936 },
@@ -493,91 +493,32 @@ export const INITIAL_USERS: AppUser[] = [
         isDefault: false,
       },
     ],
-    studentId: '3122600015',
+    studentId: '3121500001',
     studyProgram: 'D4 Teknik Informatika',
     createdAt: '2024-01-10T08:00:00Z',
   },
   {
-    id: 'user-2',
-    name: 'Dewi Anggraini',
-    phone: '0857-1122-3344',
-    email: 'dewi.anggraini@pens.ac.id',
+    id: '7f7c78de-164a-4407-8298-d60b5b22be6b',
+    name: 'Daffa Faiq',
+    phone: '081288366404',
+    email: 'faiqwidayat@gmail.com',
     userType: 'mahasiswa',
     role: 'user',
     isActive: true,
-    favorites: ['food-5', 'food-10', 'food-28'],
+    favorites: ['1', '5'],
     savedAddresses: [
       {
         id: 'addr-3',
-        label: 'Gedung Pasca',
-        fullAddress: 'Innovation & Startup Space, Gedung Pascasarjana Lt. 5, PENS',
-        streetNotes: 'Ruang inkubator startup meja nomor 3',
+        label: 'Lab Robotika (EROC)',
+        fullAddress: 'Workshop Mekatronika & Lab Robotika (EROC), Kampus PENS Sukolilo',
+        streetNotes: 'Meja mekanik arena robot',
         coordinates: { lat: -7.2763, lng: 112.7941 },
         isDefault: true,
       },
     ],
-    studentId: '3122600028',
-    studyProgram: 'D4 Sains Data Terapan',
+    studentId: '5426600011',
+    studyProgram: 'D4 Teknik Mekatronika',
     createdAt: '2024-01-11T08:00:00Z',
-  },
-  {
-    id: 'user-3',
-    name: 'Fajar Hidayat',
-    phone: '0821-9988-7766',
-    email: 'fajar.hidayat@pens.ac.id',
-    userType: 'mahasiswa',
-    role: 'user',
-    isActive: true,
-    favorites: ['food-18', 'food-23', 'food-31'],
-    savedAddresses: [
-      {
-        id: 'addr-4',
-        label: 'Lab D3',
-        fullAddress: 'Lab Telekomunikasi, Gedung D3 Lt. 3, Kampus PENS',
-        streetNotes: 'Ruang Lab Telkom 2',
-        coordinates: { lat: -7.2758, lng: 112.7931 },
-        isDefault: true,
-      },
-    ],
-    studentId: '3121500042',
-    studyProgram: 'D3 Teknik Telekomunikasi',
-    createdAt: '2024-01-12T08:00:00Z',
-  },
-  {
-    id: 'user-4',
-    name: 'Nadia Rahmawati',
-    phone: '0813-4455-6677',
-    email: 'nadia.rahma@pens.ac.id',
-    userType: 'mahasiswa',
-    role: 'user',
-    isActive: true,
-    favorites: ['food-6', 'food-26', 'food-30'],
-    savedAddresses: [
-      {
-        id: 'addr-5',
-        label: 'Ruang Dosen D4',
-        fullAddress: 'Ruang Dosen & Administrasi Gedung D4 Baru Lt. 1, Kampus PENS',
-        streetNotes: 'Meja Asisten Dosen / Admin',
-        coordinates: { lat: -7.2755, lng: 112.7934 },
-        isDefault: true,
-      },
-    ],
-    studentId: '3122600055',
-    studyProgram: 'D4 Sistem Pembangkit Energi',
-    createdAt: '2024-01-13T08:00:00Z',
-  },
-  {
-    id: 'user-5',
-    name: 'Bagas Wahyudi',
-    phone: '0878-5566-7788',
-    email: 'bagas.w@pens.ac.id',
-    userType: 'mahasiswa',
-    role: 'user',
-    isActive: false,
-    favorites: [],
-    studentId: '3123500010',
-    studyProgram: 'D3 Teknik Elektro Industri',
-    createdAt: '2024-01-14T08:00:00Z',
   },
 ];
 
@@ -585,50 +526,20 @@ export const INITIAL_USERS: AppUser[] = [
 
 export const INITIAL_COURIERS: Courier[] = [
   {
-    id: 'kurir-1',
-    name: 'Bima Ananda',
-    studentId: '3121600008', // D4 Telekomunikasi '21
+    id: '9c386538-4a00-47ec-a071-9fc7c32b382e',
+    name: 'Rian Pratama',
+    studentId: '3121500099', // D4 Telekomunikasi
     isAvailable: true,
     isEnabled: true,
     createdAt: '2024-01-05T08:00:00Z',
-  },
-  {
-    id: 'kurir-2',
-    name: 'Candra Wijaya',
-    studentId: '3122600044', // D4 Teknik Komputer '22
-    isAvailable: true,
-    isEnabled: true,
-    createdAt: '2024-01-06T08:00:00Z',
-  },
-  {
-    id: 'kurir-3',
-    name: 'Hendra Gunawan',
-    studentId: '3121500019', // D3 Teknik Elektro Industri '21
-    isAvailable: false,
-    isEnabled: true,
-    createdAt: '2024-01-07T08:00:00Z',
-  },
-  {
-    id: 'kurir-4',
-    name: 'Irfan Maulana',
-    studentId: '3122600032', // D4 Mekatronika '22
-    isAvailable: true,
-    isEnabled: true,
-    createdAt: '2024-01-08T08:00:00Z',
-  },
-  {
-    id: 'kurir-5',
-    name: 'Joko Susilo',
-    studentId: '3123500021', // D3 Game Technology '23
-    isAvailable: true,
-    isEnabled: false,
-    createdAt: '2024-01-09T08:00:00Z',
   },
 ];
 
 // ─── Demo Orders (Pesanan Terintegrasi Kampus PENS) ───────────────────────────
 
-export const INITIAL_ORDERS: Order[] = [
+export const INITIAL_ORDERS: Order[] = [];
+
+export const DEPRECATED_ORDERS: Order[] = [
   // 1. Pending courier (awaiting)
   {
     id: 'ORD-001',
@@ -875,8 +786,8 @@ export const INITIAL_ORDERS: Order[] = [
 
 // ─── Default App State Data ───────────────────────────────────────────────────
 
-export const DEFAULT_DEMO_USER_ID = 'user-1';
-export const DEFAULT_DEMO_COURIER_ID = 'kurir-1';
+export const DEFAULT_DEMO_USER_ID = '014cfa4d-9fe1-466f-be0f-c321190da118';
+export const DEFAULT_DEMO_COURIER_ID = '9c386538-4a00-47ec-a071-9fc7c32b382e';
 
 export const FOOD_CATEGORY_LABELS: Record<string, string> = {
   makanan_berat: 'Makanan Berat',

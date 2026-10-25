@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useCallback, useState } from 'react';
+import type { User } from '@supabase/supabase-js';
 import type { AppState, Role, Order, OrderStatus, FoodItem, Canteen, Courier, AppUser, CartItem, OrderItem, SavedAddress } from '../types';
 import {
   INITIAL_CANTEENS,
@@ -18,24 +19,33 @@ import {
   type DeliveryPricingConfig,
   type GeoPoint,
 } from '../utils/deliveryPricing';
+import { supabase } from '../lib/supabase';
+import {
+  canteenService,
+  productService,
+  orderService,
+  profileService,
+  authService,
+  type SignUpParams,
+} from '../services/api';
 
 // ─── Initial State ────────────────────────────────────────────────────────────
 
-const DEMO_VERSION = 4; // Bump version untuk lingkup internal satu kampus PENS
+const DEMO_VERSION = 11; // Bump version for strict session isolation
 
 function getInitialState(): AppState {
   const saved = loadState();
   if (saved && saved.demoVersion === DEMO_VERSION) {
     return {
-      currentRole: saved.currentRole ?? null,
+      currentRole: null, // Always require explicit role/login on fresh boot
       currentUserId: saved.currentUserId ?? DEFAULT_DEMO_USER_ID,
       currentCourierId: saved.currentCourierId ?? DEFAULT_DEMO_COURIER_ID,
       users: saved.users ?? INITIAL_USERS,
       couriers: saved.couriers ?? INITIAL_COURIERS,
       canteens: saved.canteens ?? INITIAL_CANTEENS,
       foodItems: saved.foodItems ?? INITIAL_FOOD_ITEMS,
-      orders: saved.orders ?? INITIAL_ORDERS,
-      cart: saved.cart ?? [],
+      orders: [], // Orders must be fetched per authenticated session from Supabase RLS
+      cart: [], // Cart is isolated per session and never leaked
       pricingConfig: saved.pricingConfig ?? DEFAULT_PRICING_CONFIG,
       demoVersion: DEMO_VERSION,
     };
@@ -48,7 +58,7 @@ function getInitialState(): AppState {
     couriers: INITIAL_COURIERS,
     canteens: INITIAL_CANTEENS,
     foodItems: INITIAL_FOOD_ITEMS,
-    orders: INITIAL_ORDERS,
+    orders: [],
     cart: [],
     pricingConfig: DEFAULT_PRICING_CONFIG,
     demoVersion: DEMO_VERSION,
@@ -62,6 +72,12 @@ type Action =
   | { type: 'SET_DEMO_USER'; userId: string }
   | { type: 'SET_DEMO_COURIER'; courierId: string }
   | { type: 'RESET_DEMO' }
+  // DB Sync
+  | { type: 'SET_USERS'; users: AppUser[] }
+  | { type: 'SET_COURIERS'; couriers: Courier[] }
+  | { type: 'SET_CANTEENS'; canteens: Canteen[] }
+  | { type: 'SET_FOOD_ITEMS'; items: FoodItem[] }
+  | { type: 'SET_ORDERS'; orders: Order[] }
   // Orders
   | { type: 'CREATE_ORDER'; order: Order }
   | { type: 'TRANSITION_ORDER'; orderId: string; status: OrderStatus; courierId?: string; note?: string }
@@ -119,6 +135,21 @@ function reducer(state: AppState, action: Action): AppState {
         pricingConfig: DEFAULT_PRICING_CONFIG,
         demoVersion: DEMO_VERSION,
       };
+
+    case 'SET_USERS':
+      return { ...state, users: action.users };
+
+    case 'SET_COURIERS':
+      return { ...state, couriers: action.couriers };
+
+    case 'SET_CANTEENS':
+      return { ...state, canteens: action.canteens };
+
+    case 'SET_FOOD_ITEMS':
+      return { ...state, foodItems: action.items };
+
+    case 'SET_ORDERS':
+      return { ...state, orders: action.orders };
 
     case 'CREATE_ORDER':
       return { ...state, orders: [action.order, ...state.orders], cart: [] };
@@ -284,6 +315,16 @@ export interface OrderDeliveryMeta {
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
+export interface AppProfile {
+  id: string;
+  full_name: string;
+  phone?: string | null;
+  role: 'user' | 'courier' | 'admin';
+  student_id?: string | null;
+  study_program?: string | null;
+  avatar_url?: string | null;
+}
+
 interface AppContextValue {
   state: AppState;
   setRole: (role: Role | null) => void;
@@ -322,6 +363,14 @@ interface AppContextValue {
   cartSubtotal: number;
   cartCount: number;
   pricingConfig: DeliveryPricingConfig;
+  // Supabase Auth Integration
+  authUser: User | null;
+  authProfile: AppProfile | null;
+  isAuthLoading: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (params: SignUpParams) => Promise<void>;
+  signOut: () => Promise<void>;
+  isDbConnected: boolean;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -330,12 +379,184 @@ const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, getInitialState);
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [authProfile, setAuthProfile] = useState<AppProfile | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isDbConnected, setIsDbConnected] = useState(false);
 
-  // Persist state to localStorage (except currentRole to avoid auto-login on refresh)
+  // 1. Initial Load: Auth Session & DB Data
   useEffect(() => {
-    const { currentRole: _role, ...toSave } = state;
+    let isMounted = true;
+
+    async function initAuthAndData() {
+      try {
+        // Check session
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData.session?.user && isMounted) {
+          const user = sessionData.session.user;
+          setAuthUser(user);
+          const profile = await authService.getCurrentProfile(user.id);
+          if (profile && isMounted) {
+            setAuthProfile(profile as AppProfile);
+            const appRole: Role = profile.role === 'courier' ? 'kurir' : (profile.role as Role);
+            dispatch({ type: 'SET_ROLE', role: appRole });
+            if (profile.role === 'courier') {
+              dispatch({ type: 'SET_DEMO_COURIER', courierId: profile.id });
+            } else {
+              dispatch({ type: 'SET_DEMO_USER', userId: profile.id });
+            }
+          }
+        }
+
+        // Fetch Profiles from DB
+        const { users: dbUsers, couriers: dbCouriers } = await profileService.fetchProfiles();
+        if (dbUsers.length > 0 && isMounted) {
+          dispatch({ type: 'SET_USERS', users: dbUsers });
+        }
+        if (dbCouriers.length > 0 && isMounted) {
+          dispatch({ type: 'SET_COURIERS', couriers: dbCouriers });
+        }
+
+        // Fetch Canteens from DB
+        const canteens = await canteenService.fetchCanteens();
+        if (canteens.length > 0 && isMounted) {
+          dispatch({ type: 'SET_CANTEENS', canteens });
+          setIsDbConnected(true);
+        }
+
+        // Fetch Products from DB
+        const products = await productService.fetchProducts();
+        if (products.length > 0 && isMounted) {
+          dispatch({ type: 'SET_FOOD_ITEMS', items: products });
+        }
+
+        // Fetch Orders from DB
+        const orders = await orderService.fetchOrders();
+        if (isMounted) {
+          dispatch({ type: 'SET_ORDERS', orders });
+        }
+      } catch (err) {
+        console.warn('Database initialization note:', err);
+      } finally {
+        if (isMounted) setIsAuthLoading(false);
+      }
+    }
+
+    initAuthAndData();
+
+    // Listen to Supabase Auth State Changes
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMounted) return;
+      if (event === 'SIGNED_OUT' || !session?.user) {
+        setAuthUser(null);
+        setAuthProfile(null);
+        dispatch({ type: 'CLEAR_CART' });
+        dispatch({ type: 'SET_ORDERS', orders: [] });
+      } else if (session?.user) {
+        setAuthUser(session.user);
+        const profile = await authService.getCurrentProfile(session.user.id);
+        if (profile && isMounted) {
+          setAuthProfile(profile as AppProfile);
+          const appRole: Role = profile.role === 'courier' ? 'kurir' : (profile.role as Role);
+          dispatch({ type: 'SET_ROLE', role: appRole });
+          if (profile.role === 'courier') {
+            dispatch({ type: 'SET_DEMO_COURIER', courierId: profile.id });
+          } else {
+            dispatch({ type: 'SET_DEMO_USER', userId: profile.id });
+          }
+        }
+        try {
+          const freshOrders = await orderService.fetchOrders();
+          if (isMounted) {
+            dispatch({ type: 'SET_ORDERS', orders: freshOrders });
+          }
+        } catch {
+          // ignore error if network is offline
+        }
+      }
+    });
+
+    // Realtime subscription for Orders
+    const unsubscribeOrders = orderService.subscribeToOrders(async () => {
+      try {
+        const freshOrders = await orderService.fetchOrders();
+        if (isMounted) {
+          dispatch({ type: 'SET_ORDERS', orders: freshOrders });
+        }
+      } catch (err) {
+        console.error('Realtime order sync error:', err);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      authListener.subscription.unsubscribe();
+      unsubscribeOrders();
+    };
+  }, []);
+
+  // Persist state to localStorage (strictly exclude session-specific orders, cart, and role to prevent cross-account leaks)
+  useEffect(() => {
+    const { currentRole: _role, orders: _orders, cart: _cart, ...toSave } = state;
     saveState({ ...toSave, currentRole: null });
   }, [state]);
+
+  // Auth Functions
+  const signIn = useCallback(async (email: string, password: string) => {
+    const data = await authService.signIn(email, password);
+    if (data.user) {
+      setAuthUser(data.user);
+      const profile = await authService.getCurrentProfile(data.user.id);
+      if (profile) {
+        setAuthProfile(profile as AppProfile);
+        const appRole: Role = profile.role === 'courier' ? 'kurir' : (profile.role as Role);
+        dispatch({ type: 'SET_ROLE', role: appRole });
+        if (profile.role === 'courier') {
+          dispatch({ type: 'SET_DEMO_COURIER', courierId: profile.id });
+        } else {
+          dispatch({ type: 'SET_DEMO_USER', userId: profile.id });
+        }
+      }
+      // Guarantee session isolation: clear previous cart and load only this user's DB orders
+      dispatch({ type: 'CLEAR_CART' });
+      try {
+        const freshOrders = await orderService.fetchOrders();
+        dispatch({ type: 'SET_ORDERS', orders: freshOrders });
+      } catch (err) {
+        console.warn('Order fetch after signin note:', err);
+      }
+    }
+  }, []);
+
+  const signUp = useCallback(async (params: SignUpParams) => {
+    const data = await authService.signUp(params);
+    if (data.user) {
+      setAuthUser(data.user);
+      const profile = await authService.getCurrentProfile(data.user.id);
+      if (profile) {
+        setAuthProfile(profile as AppProfile);
+        const appRole: Role = profile.role === 'courier' ? 'kurir' : (profile.role as Role);
+        dispatch({ type: 'SET_ROLE', role: appRole });
+        if (profile.role === 'courier') {
+          dispatch({ type: 'SET_DEMO_COURIER', courierId: profile.id });
+        } else {
+          dispatch({ type: 'SET_DEMO_USER', userId: profile.id });
+        }
+      }
+      dispatch({ type: 'CLEAR_CART' });
+      dispatch({ type: 'SET_ORDERS', orders: [] });
+    }
+  }, []);
+
+  const signOut = useCallback(async () => {
+    await authService.signOut();
+    setAuthUser(null);
+    setAuthProfile(null);
+    dispatch({ type: 'CLEAR_CART' });
+    dispatch({ type: 'SET_ORDERS', orders: [] });
+    dispatch({ type: 'SET_ROLE', role: null });
+    clearState();
+  }, []);
 
   const setRole = useCallback((role: Role | null) => dispatch({ type: 'SET_ROLE', role }), []);
   const setDemoUser = useCallback((userId: string) => dispatch({ type: 'SET_DEMO_USER', userId }), []);
@@ -343,7 +564,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const resetDemo = useCallback(() => dispatch({ type: 'RESET_DEMO' }), []);
 
   const createOrder = useCallback(
-    (
+    async (
       items: CartItem[],
       canteenId: string,
       deliveryPoint: string,
@@ -361,7 +582,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
       const subtotal = orderItems.reduce((sum, i) => sum + i.priceAtOrder * i.quantity, 0);
 
-      // Single source of truth: kalkulasi ulang di level server/state
       const distanceKm = meta?.distanceKm && meta.distanceKm > 0 ? meta.distanceKm : 1.0;
       const pricingResult = computeDeliveryPricing(distanceKm, 15, state.pricingConfig);
       
@@ -386,7 +606,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       const order: Order = {
         id,
-        userId: state.currentUserId ?? 'user-1',
+        userId: authUser ? authUser.id : (state.currentUserId ?? 'user-1'),
         courierId: null,
         items: orderItems,
         canteenId,
@@ -407,41 +627,119 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         statusHistory: [{ status: 'pending_courier', timestamp: now }],
       };
 
-      dispatch({ type: 'CREATE_ORDER', order });
+      // Persist to Supabase
+      try {
+        await orderService.createOrder({
+          canteenId,
+          deliveryPoint,
+          deliveryNotes,
+          items,
+          serviceFee: deliveryFee,
+          appFee,
+        });
+
+        dispatch({ type: 'CLEAR_CART' });
+
+        // Immediately fetch fresh orders from DB so that state has the real ID, order_number, and user_id!
+        const freshOrders = await orderService.fetchOrders();
+        dispatch({ type: 'SET_ORDERS', orders: freshOrders });
+      } catch (err) {
+        console.error('Backend order creation error, using local fallback:', err);
+        // Optimistic local update as fallback
+        dispatch({ type: 'CREATE_ORDER', order });
+      }
     },
-    [state.foodItems, state.currentUserId, state.pricingConfig]
+    [state.foodItems, state.currentUserId, state.pricingConfig, authUser]
   );
 
-  const transitionOrder = useCallback((orderId: string, status: OrderStatus, courierId?: string, note?: string) => {
-    dispatch({ type: 'TRANSITION_ORDER', orderId, status, courierId, note });
-  }, []);
+  const transitionOrder = useCallback(
+    async (orderId: string, status: OrderStatus, courierId?: string, note?: string) => {
+      // Optimistic update
+      dispatch({ type: 'TRANSITION_ORDER', orderId, status, courierId, note });
+
+      // Persist to Supabase
+      try {
+        await orderService.updateOrderStatus(orderId, status, courierId, note);
+        // Refresh orders from DB to guarantee live sync
+        const freshOrders = await orderService.fetchOrders();
+        dispatch({ type: 'SET_ORDERS', orders: freshOrders });
+      } catch (err) {
+        console.warn('Backend transition persistence note:', err);
+      }
+    },
+    []
+  );
 
   const addToCart = useCallback((foodItemId: string) => dispatch({ type: 'ADD_TO_CART', foodItemId }), []);
   const removeFromCart = useCallback((foodItemId: string) => dispatch({ type: 'REMOVE_FROM_CART', foodItemId }), []);
   const updateCartQty = useCallback((foodItemId: string, quantity: number) => dispatch({ type: 'UPDATE_CART_QTY', foodItemId, quantity }), []);
   const clearCart = useCallback(() => dispatch({ type: 'CLEAR_CART' }), []);
 
-  const addFoodItem = useCallback((item: Omit<FoodItem, 'id' | 'createdAt'>) => {
+  const addFoodItem = useCallback(async (item: Omit<FoodItem, 'id' | 'createdAt'>) => {
     const newItem: FoodItem = {
       ...item,
       id: `food-${Date.now()}`,
       createdAt: new Date().toISOString(),
     };
     dispatch({ type: 'ADD_FOOD_ITEM', item: newItem });
+
+    try {
+      await productService.createProduct(item);
+    } catch (err) {
+      console.warn('Product create persistence note:', err);
+    }
   }, []);
 
-  const updateFoodItem = useCallback((item: FoodItem) => dispatch({ type: 'UPDATE_FOOD_ITEM', item }), []);
-  const deleteFoodItem = useCallback((id: string) => dispatch({ type: 'DELETE_FOOD_ITEM', id }), []);
-
-  const addCanteen = useCallback((canteen: Omit<Canteen, 'id' | 'createdAt'>) => {
-    dispatch({
-      type: 'ADD_CANTEEN',
-      canteen: { ...canteen, id: `canteen-${Date.now()}`, createdAt: new Date().toISOString() },
-    });
+  const updateFoodItem = useCallback(async (item: FoodItem) => {
+    dispatch({ type: 'UPDATE_FOOD_ITEM', item });
+    try {
+      await productService.updateProduct(item.id, item);
+    } catch (err) {
+      console.warn('Product update persistence note:', err);
+    }
   }, []);
 
-  const updateCanteen = useCallback((canteen: Canteen) => dispatch({ type: 'UPDATE_CANTEEN', canteen }), []);
-  const deleteCanteen = useCallback((id: string) => dispatch({ type: 'DELETE_CANTEEN', id }), []);
+  const deleteFoodItem = useCallback(async (id: string) => {
+    dispatch({ type: 'DELETE_FOOD_ITEM', id });
+    try {
+      await productService.deleteProduct(id);
+    } catch (err) {
+      console.warn('Product delete persistence note:', err);
+    }
+  }, []);
+
+  const addCanteen = useCallback(async (canteen: Omit<Canteen, 'id' | 'createdAt'>) => {
+    const newCanteen: Canteen = {
+      ...canteen,
+      id: `canteen-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    dispatch({ type: 'ADD_CANTEEN', canteen: newCanteen });
+    try {
+      await canteenService.createCanteen(canteen);
+    } catch (err) {
+      console.warn('Canteen create persistence note:', err);
+    }
+  }, []);
+
+  const updateCanteen = useCallback(async (canteen: Canteen) => {
+    dispatch({ type: 'UPDATE_CANTEEN', canteen });
+    try {
+      await canteenService.updateCanteen(canteen.id, canteen);
+    } catch (err) {
+      console.warn('Canteen update persistence note:', err);
+    }
+  }, []);
+
+  const deleteCanteen = useCallback(async (id: string) => {
+    dispatch({ type: 'DELETE_CANTEEN', id });
+    try {
+      await canteenService.deleteCanteen(id);
+    } catch (err) {
+      console.warn('Canteen delete persistence note:', err);
+    }
+  }, []);
+
   const updateCourier = useCallback((courier: Courier) => dispatch({ type: 'UPDATE_COURIER', courier }), []);
   const updateUser = useCallback((user: AppUser) => dispatch({ type: 'UPDATE_USER', user }), []);
 
@@ -476,14 +774,46 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Derived helpers
-  const currentUser = state.users.find((u) => u.id === state.currentUserId) ?? null;
-  const currentCourier = state.couriers.find((c) => c.id === state.currentCourierId) ?? null;
+  const currentUser: AppUser | null = authProfile && authProfile.role === 'user'
+    ? {
+        id: authProfile.id,
+        name: authProfile.full_name,
+        phone: authProfile.phone || '0812-3456-7890',
+        email: authUser?.email,
+        studentId: authProfile.student_id || undefined,
+        studyProgram: authProfile.study_program || undefined,
+        role: 'user',
+        isActive: true,
+        favorites: state.users.find((u) => u.id === authProfile.id)?.favorites ?? ['1', '2'],
+        savedAddresses: state.users.find((u) => u.id === authProfile.id)?.savedAddresses ?? [
+          {
+            id: 'addr-default',
+            label: 'Lab Utama (D4)',
+            fullAddress: 'Lab AI & Rekayasa Perangkat Lunak, Gedung D4 Baru Lt. 2, Kampus PENS',
+            streetNotes: 'Meja praktikum',
+            coordinates: { lat: -7.2755, lng: 112.7936 },
+            isDefault: true,
+          },
+        ],
+        createdAt: '2024-01-01T00:00:00Z',
+      }
+    : (state.users.find((u) => u.id === state.currentUserId) ?? state.users[0] ?? null);
+
+  const currentCourier: Courier | null = authProfile && authProfile.role === 'courier'
+    ? {
+        id: authProfile.id,
+        name: authProfile.full_name,
+        studentId: authProfile.student_id || '3121500099',
+        isAvailable: state.couriers.find((c) => c.id === authProfile.id)?.isAvailable ?? true,
+        isEnabled: true,
+        createdAt: '2024-01-01T00:00:00Z',
+      }
+    : (state.couriers.find((c) => c.id === state.currentCourierId) ?? state.couriers[0] ?? null);
 
   const cartSubtotal = state.cart.reduce((sum, ci) => {
     const food = state.foodItems.find((f) => f.id === ci.foodItemId);
     return sum + (food?.price ?? 0) * ci.quantity;
   }, 0);
-  // Default estimate cart total (base fee + minimum distance)
   const defaultEstimateOngkir = state.pricingConfig.baseFee + (1 * state.pricingConfig.ratePerKm);
   const cartTotal = cartSubtotal + (state.cart.length > 0 ? defaultEstimateOngkir : 0);
   const cartCount = state.cart.reduce((sum, ci) => sum + ci.quantity, 0);
@@ -519,6 +849,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     cartSubtotal,
     cartCount,
     pricingConfig: state.pricingConfig,
+    authUser,
+    authProfile,
+    isAuthLoading,
+    signIn,
+    signUp,
+    signOut,
+    isDbConnected,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
